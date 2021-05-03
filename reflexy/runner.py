@@ -2,7 +2,7 @@ import pygame
 import os
 import sys
 import time
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Callable
 from reflexy.constants import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
@@ -30,13 +30,13 @@ class Runner:
         pygame.display.set_caption(CAPTION)
 
         self.clock = pygame.time.Clock()
-        self.background = self.create_background()
+        self.background = self.create_background("background-field.png")
 
         self.time = time.time()
         self.last_time = self.time
         self.time_game()
 
-        self.text = create_pygame_font(FONT_SIZE, bold=True)
+        self.text = create_pygame_font(size=FONT_SIZE, bold=True)
 
         self.allow_restart = True
 
@@ -54,11 +54,18 @@ class Runner:
         self.cd_spawn_spider = self.time
 
     @staticmethod
-    def create_background():
-        bg = pygame.image.load(get_image_path("background-field.png"))
+    def create_background(bg_image: str) -> pygame.surface.Surface:
+        """Create the background surface of the window.
+
+        Keyword arguments:
+        bg_image -- name of background image
+        """
+        bg = pygame.image.load(get_image_path(bg_image))
+
         return pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def time_game(self):
+        """Clock of the game."""
         self.time = (
             self.time
             + (time.time() - self.last_time)
@@ -67,10 +74,16 @@ class Runner:
         )
         self.last_time = time.time()
 
-    def create_text(self, text):
+    def create_text(self, text: str) -> pygame.surface.Surface:
+        """Create a surface text in the window.
+
+        Keyword arguments:
+        text -- text to be printed
+        """
         return self.text.render(text, True, (255, 255, 255))
 
-    def has_collision(self):
+    def has_collision(self) -> bool:
+        """Check collisions in each frame."""
         if self.player.attacking:
             [
                 self.kill_spider(sprite)
@@ -79,7 +92,7 @@ class Runner:
                     sprite,
                     self.player_group,
                     False,
-                    pygame.sprite.collide_mask,
+                    pygame.sprite.collide_mask,  # type: ignore
                 )
             ]
 
@@ -92,20 +105,25 @@ class Runner:
                 sprite,
                 self.laser_hit_group,
                 False,
-                pygame.sprite.collide_mask,
+                pygame.sprite.collide_mask,  # type: ignore
             )
             and not sprite.ray
         ]
 
-        return pygame.sprite.groupcollide(
-            self.player_group,
-            self.enemy_group,
-            False,
-            False,
-            pygame.sprite.collide_mask,
+        bool_collision = bool(
+            pygame.sprite.groupcollide(
+                self.player_group,
+                self.enemy_group,
+                False,
+                False,
+                pygame.sprite.collide_mask,  # type: ignore
+            )
         )
 
-    def has_hit(self):
+        return bool_collision
+
+    def has_hit(self) -> bool:
+        """Check if has hit in each frame."""
         for enemy in self.enemy_group.sprites():
             if enemy.ray:
                 if enemy.ray not in self.enemy_group.sprites():
@@ -116,16 +134,20 @@ class Runner:
                 ):
                     self.laser_hit_group.add(enemy.ray)
 
-        hit = pygame.sprite.groupcollide(
-            self.laser_hit_group,
-            self.player_group,
-            False,
-            False,
-            pygame.sprite.collide_mask,
+        bool_hit = bool(
+            pygame.sprite.groupcollide(
+                self.laser_hit_group,
+                self.player_group,
+                False,
+                False,
+                pygame.sprite.collide_mask,  # type: ignore
+            )
         )
-        return hit
+
+        return bool_hit
 
     def hp(self):
+        """Update player's lives and blinking state."""
         if self.enemy_group.sprites():
             if (self.has_collision() or self.has_hit()) and not self.player_hit:
                 self.player.hp -= 1
@@ -147,17 +169,20 @@ class Runner:
                 self.player.blinking_damage = 0
 
     def respawn_spider(self):
+        """Add a Spider."""
         self.enemy_group.add(LaserSpider(self.time))
 
-    def kill_spider(self, sprite):
-        if sprite.ray:
-            sprite.ray.kill()
-            sprite.ray
+    def kill_spider(self, sprite: pygame.sprite.Sprite):
+        """Remove killed spider sprite."""
+        if sprite.ray:  # type: ignore
+            sprite.ray.kill()  # type: ignore
+            sprite.ray  # type: ignore
 
-        sprite.kill()
+        sprite.kill()  # type: ignore
         self.player.score += 1
 
     def check_events(self):
+        """Check game events in each frame."""
         if self.time - self.cd_spawn_spider > SPAWN_SPIDER:
             self.respawn_spider()
             self.cd_spawn_spider = self.time
@@ -180,9 +205,10 @@ class Runner:
 
                 self.player.keyup(event.key)
 
-    def update_score(self):
+    def update_score_lives(self):
+        """Update player's lives and score."""
         self.screen.blit(
-            self.create_text("Lifes = " + str(self.player.hp)),
+            self.create_text("Lives = " + str(self.player.hp)),
             (FONT_SIZE, SCREEN_HEIGHT / 8),
         )
         self.screen.blit(
@@ -191,6 +217,7 @@ class Runner:
         )
 
     def update_frame(self):
+        """Draw all elements on the screen."""
         self.screen.blit(self.background, (0, 0))
         self.time_game()
 
@@ -200,10 +227,11 @@ class Runner:
         self.enemy_group.update(self.screen, self.player.center, self.time)
         self.player_group.update(self.time)
 
-        self.update_score()
+        self.update_score_lives()
         pygame.display.update()
 
     def restart(self):
+        """Draw the restart screen."""
         if not self.allow_restart:
             pygame.quit()
             sys.exit()
@@ -239,6 +267,7 @@ class Runner:
         start()
 
     def run(self):
+        """Loop each frame of the game."""
         while self.player.hp > 0:
             self.clock.tick(CLOCK_TICK_GAME_SPEED)
             self.check_events()
